@@ -21,6 +21,7 @@ import de.robv.android.xposed.callbacks.XC_LoadPackage;
 
 import com.kooritea.fcmfix.util.IceboxUtils;
 import com.kooritea.fcmfix.util.XposedUtils;
+import com.kooritea.fcmfix.util.DozeUtils;
 
 public class BroadcastFix extends XposedModule {
 
@@ -151,13 +152,29 @@ public class BroadcastFix extends XposedModule {
                             methodHookParam.args[finalAppOp_args_index] = 11;
                         }
                         intent.addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES);
+                        boolean needWaitForUnfreeze = false;
+
+                        // Try Re-Kernel first if available
+                        if (DozeUtils.isKernelAvailable()) {
+                            printLog("Trying to unfreeze using Re-Kernel: " + target, true);
+                            DozeUtils.activeApp(context, target);
+                            needWaitForUnfreeze = true;
+                        }
+
+                        // Check and unfreeze app if it's frozen by IceBox
                         if (getBooleanConfig("includeIceBoxDisableApp",false) && !IceboxUtils.isAppEnabled(context, target)) {
                             printLog("Waiting for IceBox to activate the app: " + target, true);
+                            needWaitForUnfreeze = true;
+                            IceboxUtils.activeApp(context, target);
+                        }
+
+                        if(needWaitForUnfreeze) {
                             methodHookParam.setResult(false);
                             new Thread(() -> {
-                                IceboxUtils.activeApp(context, target);
+                                // Wait for app to be unfrozen
                                 for (int i1 = 0; i1 < 300; i1++) {
-                                    if (!IceboxUtils.isAppEnabled(context, target)) {
+                                    if ((DozeUtils.isKernelAvailable() && !DozeUtils.isAppRunning(context, target)) || 
+                                        (getBooleanConfig("includeIceBoxDisableApp",false) && !IceboxUtils.isAppEnabled(context, target))) {
                                         try {
                                             Thread.sleep(100);
                                         } catch (Throwable e) {
@@ -168,17 +185,18 @@ public class BroadcastFix extends XposedModule {
                                     }
                                 }
                                 try {
-                                    if(IceboxUtils.isAppEnabled(context, target)){
+                                    if((!DozeUtils.isKernelAvailable() || DozeUtils.isAppRunning(context, target)) && 
+                                       (!getBooleanConfig("includeIceBoxDisableApp",false) || IceboxUtils.isAppEnabled(context, target))) {
                                         printLog("Send Forced Start Broadcast: " + target, true);
-                                    }else{
-                                        printLog("Waiting for IceBox to activate the app timed out: " + target, true);
+                                    } else {
+                                        printLog("Waiting for app to be unfrozen timed out: " + target, true);
                                     }
                                     XposedBridge.invokeOriginalMethod(methodHookParam.method, methodHookParam.thisObject, methodHookParam.args);
                                 } catch (Throwable e) {
                                     printLog("Send Forced Start Broadcast Error: " + target + " " + e.getMessage(), true);
                                 }
                             }).start();
-                        }else{
+                        } else {
                             printLog("Send Forced Start Broadcast: " + target, true);
                         }
                         // cos15 unfreeze
