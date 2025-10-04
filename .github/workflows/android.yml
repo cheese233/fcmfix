@@ -33,8 +33,22 @@ jobs:
     - name: Build with Gradle
       run: ./gradlew assembleRelease
 
+    - name: Generate debug keystore
+      run: |
+        keytool -genkeypair -alias androiddebugkey \
+          -keyalg RSA -keysize 2048 -validity 10000 \
+          -keystore debug.keystore \
+          -storepass android -keypass android \
+          -dname "CN=Debug,O=CI,C=US"
+
+    - name: Sign APK
+      run: |
+         jarsigner -verbose -keystore debug.keystore \
+           -storepass android -keypass android \
+           -signedjar {{ github.workspace }}/app/build/outputs/apk/release/app-release-signed.apk ${{ github.workspace }}/app/build/outputs/apk/release/app-release-unsigned.apk androiddebugkey
+    
     - name: Rename
-      run: mv ${{ github.workspace }}/app/build/outputs/apk/release/app-release-unsigned.apk ${{ github.workspace }}/app/build/outputs/apk/release/fcmfix-ci-${{ env.VERSION_NAME }}.apk
+      run: mv ${{ github.workspace }}/app/build/outputs/apk/release/app-release-signed.apk ${{ github.workspace }}/app/build/outputs/apk/release/fcmfix-ci-${{ env.VERSION_NAME }}.apk
     
     - name: Upload built apk
       uses: actions/upload-artifact@v4
