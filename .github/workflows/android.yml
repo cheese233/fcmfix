@@ -45,7 +45,8 @@ jobs:
       run: |
          jarsigner -verbose -keystore debug.keystore \
            -storepass android -keypass android \
-           -signedjar {{ github.workspace }}/app/build/outputs/apk/release/app-release-signed.apk ${{ github.workspace }}/app/build/outputs/apk/release/app-release-unsigned.apk androiddebugkey
+           -signedjar ${{ github.workspace }}/app/build/outputs/apk/release/app-release-signed.apk \
+           ${{ github.workspace }}/app/build/outputs/apk/release/app-release-unsigned.apk androiddebugkey
     
     - name: Rename
       run: mv ${{ github.workspace }}/app/build/outputs/apk/release/app-release-signed.apk ${{ github.workspace }}/app/build/outputs/apk/release/fcmfix-ci-${{ env.VERSION_NAME }}.apk
